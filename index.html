@@ -51,11 +51,23 @@
 				color: #808080d6;
 				font-size: 1.2rem;
 			}
+			.code {
+				padding: 15px;
+				border: 1px solid #eee;
+				margin-top: 20px;
+				overflow: scroll;
+			}
+
+			code#result_encoded {
+				width: 100%;
+			}
 		</style>
 	</head>
 	<script>
 		var initialized = false;
-		function button_callback() {
+		function face_detection() {
+			window.isDetected = false;
+			window.flag = 0;
 			/*
 				(0) check whether we're already running face detection
 			*/
@@ -106,43 +118,69 @@
 					"maxsize": 1000,    // maximum size of a face
 					"scalefactor": 1.1  // for multiscale processing: resize the detection window by 10% when moving to the higher scale
 				}
-				// run the cascade over the frame and cluster the obtained detections
-				// dets is an array that contains (r, c, s, q) quadruplets
-				// (representing row, column, scale and detection score)
-				dets = pico.run_cascade(image, facefinder_classify_region, params);
-				dets = update_memory(dets);
-				dets = pico.cluster_detections(dets, 0.2); // set IoU threshold to 0.2
-				// draw detections
-				for(i=0; i<dets.length; ++i)
-					// check the detection score
-					// if it's above the threshold, draw it
-					// (the constant 50.0 is empirical: other cascades might require a different one)
-					if(dets[i][3]>50.0)
-					{
-						
-						ctx.beginPath();
-						ctx.rect(dets[i][1]-dets[i][2]/2, dets[i][0]-dets[i][2]/2, dets[i][2], dets[i][2]);
-						//ctx.arc(dets[i][0], dets[i][1], dets[i][2]/2, 0, 2*Math.PI, false);
-						ctx.lineWidth = 3;
-						ctx.strokeStyle = 'red';
-						ctx.stroke();
-						// alert("x: "+dets[i][1]+"\ny: "+dets[i][0] + "\nd: "+dets[i][2])
 
-						var resultctx = document.getElementById("result").getContext('2d');
-						resultctx.hei
-						resultctx.canvas.width  = dets[i][2];
-						resultctx.canvas.height = dets[i][2];
-						var imgData = ctx.getImageData(dets[i][1]-dets[i][2]/2, dets[i][0]-dets[i][2]/2, dets[i][2], dets[i][2]);
-						resultctx.putImageData(imgData, 0, 0);	
+				
 
-						var link = document.getElementById("download_link");
-						link.href = document.getElementById("result").toDataURL();
-						link.download = "result.png";
-						document.getElementById('download_link').click()
-						var mediaStream = window.MediaStream;
-						mediaStream.stop();
-						alert(1);						
+				function detect() {
+					if(window.isDetected) {
+						return;
 					}
+					// run the cascade over the frame and cluster the obtained detections
+					// dets is an array that contains (r, c, s, q) quadruplets
+					// (representing row, column, scale and detection score)
+					dets = pico.run_cascade(image, facefinder_classify_region, params);
+					dets = update_memory(dets);
+					dets = pico.cluster_detections(dets, 0.2); // set IoU threshold to 0.2
+					
+					console.log("detect(): started")
+					// draw detections
+					for(i=0; i<dets.length; ++i)
+						// check the detection score
+						// if it's above the threshold, draw it
+						// (the constant 50.0 is empirical: other cascades might require a different one)
+						if(dets[i][3]>50.0 && window.isDetected == false)
+						{
+							dets[i][3] = 0;
+							var video_ = document.getElementsByTagName("video")[0];
+							video_.pause();
+							video_.src = "";
+							video_.srcObject = null;
+							window.isDetected = true;
+							
+							var resultctx = document.getElementById("result").getContext('2d');
+							resultctx.canvas.width  = dets[i][2];
+							resultctx.canvas.height = dets[i][2];
+							var imgData = ctx.getImageData(dets[i][1]-dets[i][2]/2, dets[i][0]-dets[i][2]/2, dets[i][2], dets[i][2]);
+							resultctx.putImageData(imgData, 0, 0);	
+
+							document.getElementById("result_encoded").innerText = document.getElementById("result").toDataURL();
+							var link = document.getElementById("download_link");
+							link.href = document.getElementById("result").toDataURL();
+							link.download = "result";
+							document.getElementById('download_link').click()
+							
+							
+							ctx.beginPath();
+							ctx.rect(dets[i][1]-dets[i][2]/2, dets[i][0]-dets[i][2]/2, dets[i][2], dets[i][2]);
+							ctx.lineWidth = 3;
+							ctx.strokeStyle = 'red';
+							ctx.stroke();
+								
+							return;
+							
+						}
+				}
+
+				if(window.flag == 0 && window.isDetected != true) {
+					console.log("else");
+					window.flag = 1;
+					setInterval(detect, 2000);
+				} else {
+					return;
+				}
+				
+
+				
 			}
 			/*
 				(4) instantiate camera handling (see https://github.com/cbrandolino/camvas)
@@ -154,10 +192,9 @@
 			initialized = true;
 		}
 	</script>
-	<body>
+	<body onload="face_detection()">
 		<div class="container">
-			<h1>Face detection</h1>				
-			<p><center><input id="cam-button" type="button" value="Start real-time face detection" onclick="button_callback()"></center></p>	
+			<h1>Face detection</h1>					
 			<div class="box">
 				<div class="container-canvas">
 					<h4>Webcam</h4>
@@ -166,9 +203,12 @@
 				<div class="container-canvas" style="margin-left:1.5rem;">
 					<h4>Face</h4>
 					<canvas id="result"></canvas>	
-				</div>
-								
+				</div>			
 			</div>
+			<div class="code">
+				<code id="result_encoded"></code>
+			</div>
+			
 			<a id="download_link"></a>
 		</div>
 	</body>
